@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Payload Decoder Playground</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+    /* Base Reset */
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background-color: #0d1117;
+      color: #c9d1d9;
+      font-family: 'Share Tech Mono', monospace;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 30px 15px;
+      user-select: text;
+    }
+
+    .container {
+      background: #161b22;
+      border-radius: 12px;
+      padding: 30px 30px 40px;
+      max-width: 850px;
+      width: 100%;
+      box-shadow:
+        0 0 10px #0f84ff88,
+        inset 0 0 10px #0f84ff55;
+      border: 1px solid #0f84ff88;
+    }
+
+    h1 {
+      margin: 0 0 25px;
+      font-size: 2.5rem;
+      text-align: center;
+      color: #0ff;
+      letter-spacing: 2px;
+      text-shadow: 0 0 8px #00ffeccc, 0 0 20px #00fffde6;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 170px;
+      background: #010409;
+      color: #33ff99;
+      border: 2px solid #0ff;
+      border-radius: 8px;
+      padding: 15px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 1rem;
+      resize: vertical;
+      box-shadow:
+        inset 0 0 12px #06f7bdcc;
+      transition: border-color 0.3s ease;
+      outline-offset: 0;
+    }
+    textarea:focus {
+      border-color: #33ffaa;
+      box-shadow:
+        inset 0 0 20px #33ffaaee;
+      outline: none;
+    }
+
+    button {
+      margin-top: 18px;
+      background: linear-gradient(45deg, #0ff 0%, #06d6a0 70%);
+      border: none;
+      color: #000;
+      font-weight: 700;
+      font-size: 1.15rem;
+      padding: 12px 28px;
+      border-radius: 12px;
+      cursor: pointer;
+      text-shadow: 0 0 4px #00000099;
+      box-shadow:
+        0 0 10px #00ffe0aa,
+        inset 0 0 24px #0ff;
+      transition: background 0.4s ease, box-shadow 0.4s ease;
+    }
+    button:hover, button:focus {
+      background: linear-gradient(45deg, #04ffd3 0%, #05b988 90%);
+      box-shadow:
+        0 0 18px #00ffcbdd,
+        inset 0 0 32px #0ff;
+      outline: none;
+    }
+
+    .output {
+      margin-top: 24px;
+      background-color: #010409;
+      border: 2px solid #00ffaa88;
+      border-radius: 10px;
+      padding: 20px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.95rem;
+      color: #33ff99;
+      min-height: 180px;
+      white-space: pre-wrap;
+      box-shadow:
+        inset 0 0 20px #06f7bdcc,
+        0 0 30px #33ffaaaa;
+      overflow-wrap: break-word;
+      overflow-y: auto;
+      max-height: 400px;
+      line-height: 1.4;
+      position: relative;
+    }
+
+    /* Scrollbar for output */
+    .output::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .output::-webkit-scrollbar-thumb {
+      background: #0ff;
+      border-radius: 20px;
+    }
+
+    .output::-webkit-scrollbar-track {
+      background: #011014;
+    }
+
+    /* Suspicious keywords highlighted */
+    .suspicious {
+      background-color: #ff0033cc;
+      color: #fff;
+      font-weight: 900;
+      padding: 0 4px;
+      border-radius: 2px;
+      text-shadow: 0 0 4px #ff0033bb;
+      cursor: help;
+    }
+
+    /* Tooltip for suspicious */
+    .suspicious:hover::after {
+      content: "⚠ Suspicious Command or Pattern Detected";
+      position: absolute;
+      background: #ff2244dd;
+      color: white;
+      font-size: 0.75rem;
+      padding: 4px 8px;
+      border-radius: 6px;
+      top: -30px;
+      left: 0;
+      white-space: nowrap;
+      pointer-events: none;
+      z-index: 9999;
+      text-shadow: none;
+    }
+
+    @media (max-width: 480px) {
+      h1 {
+        font-size: 1.8rem;
+      }
+      button {
+        width: 100%;
+        padding: 14px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container" role="main">
+    <h1>Payload Decoder Playground</h1>
+    <textarea
+      autocomplete="off"
+      autocorrect="off"
+      autocapitalize="off"
+      spellcheck="false"
+      id="payload-input"
+      aria-label="Input payload to decode"
+      placeholder="Paste your obfuscated payload here..."
+    ></textarea>
+    <button id="decode-btn" aria-describedby="decode-desc">Decode Payload</button>
+    <div id="decode-desc" style="position:absolute; left:-9999px; top:auto; width:1px; height:1px; overflow:hidden;">
+      Decode the payload and highlight suspicious commands and patterns.
+    </div>
+    <div class="output" id="decoded-output" aria-live="polite" aria-atomic="true" tabindex="0"></div>
+  </div>
+
+  <script>
+    const decodeBtn = document.getElementById('decode-btn');
+    const payloadInput = document.getElementById('payload-input');
+    const decodedOutput = document.getElementById('decoded-output');
+
+    // Try to decode Base64 (and remove whitespace common in obfuscated data)
+    function decodeBase64(input) {
+      try {
+        // Remove whitespace and newlines to avoid decoding errors
+        const cleaned = input.replace(/\s+/g, '');
+        return atob(cleaned);
+      } catch {
+        throw new Error('Invalid Base64');
+      }
+    }
+
+    // Decode Hex string (handles optional leading 0x and spaces)
+    function decodeHex(input) {
+      let cleanInput = input.replace(/0x/g, '').replace(/\s+/g, '');
+      if (cleanInput.length % 2 !== 0) {
+        cleanInput = cleanInput.slice(0, cleanInput.length - 1); // Remove last char if length odd
+      }
+      let output = '';
+      for (let i = 0; i < cleanInput.length; i += 2) {
+        const hexPair = cleanInput.substr(i, 2);
+        if (/^[0-9a-fA-F]{2}$/.test(hexPair)) {
+          output += String.fromCharCode(parseInt(hexPair, 16));
+        } else {
+          // Invalid hex pair, just output as is and continue
+          output += hexPair;
+        }
+      }
+      return output;
+    }
+
+    // Decode URL encoded strings
+    function decodeURL(input) {
+      try {
+        return decodeURIComponent(input);
+      } catch {
+        throw new Error('Invalid URL encoding');
+      }
+    }
+
+    // Decode Unicode escape sequences \uXXXX
+    function decodeUnicode(input) {
+      try {
+        return input.replace(/\\u([\dA-Fa-f]{4})/g, (match, grp) =>
+          String.fromCharCode(parseInt(grp, 16))
+        );
+      } catch {
+        throw new Error('Invalid Unicode escapes');
+      }
+    }
+
+    // Detect suspicious keywords or patterns and highlight them
+    function detectSuspiciousPatterns(decoded) {
+      const suspiciousKeywords = [
+        'cmd', 'exec', 'powershell', 'wget',
+        'curl', 'base64', 'eval', 'system',
+        'shell', 'script', 'invoke-expression', 'iex'
+      ];
+      let flagged = false;
+
+      // Escape for RegExp special characters for keys if any
+      function escapeRegExp(string) {
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      }
+
+      suspiciousKeywords.forEach(keyword => {
+        const regex = new RegExp('\\b' + escapeRegExp(keyword) + '\\b', 'gi');
+        if (regex.test(decoded)) flagged = true;
+      });
+
+      // Replace while preserving case-insensitive matching
+      const highlighted = decoded.replace(
+        new RegExp('\\b(' + suspiciousKeywords.map(k => escapeRegExp(k)).join('|') + ')\\b', 'gi'),
+        match => `<span class="suspicious">${match}</span>`
+      );
+
+      return { decoded: highlighted, flagged };
+    }
+
+    // Attempt multiple decoding layers recursively, max 5 layers to avoid infinite loops
+    function multiLayerDecode(input, maxLayers = 5) {
+      let current = input;
+      let prev;
+      let layer = 0;
+      while (layer < maxLayers) {
+        prev = current.trim();
+        let decodedTry = null;
+
+        // Try decoding Base64 first
+        try {
+          decodedTry = decodeBase64(prev);
+        } catch {}
+
+        if (decodedTry && decodedTry !== prev) {
+          current = decodedTry;
+          layer++;
+          continue;
+        }
+
+        // Try decoding URL
+        try {
+          decodedTry = decodeURL(prev);
+        } catch {}
+
+        if (decodedTry && decodedTry !== prev) {
+          current = decodedTry;
+          layer++;
+          continue;
+        }
+
+        // Try decoding Hex
+        try {
+          decodedTry = decodeHex(prev);
+        } catch {}
+
+        if (decodedTry && decodedTry !== prev) {
+          current = decodedTry;
+          layer++;
+          continue;
+        }
+
+        // Try decoding Unicode escapes
+        try {
+          decodedTry = decodeUnicode(prev);
+        } catch {}
+
+        if (decodedTry && decodedTry !== prev) {
+          current = decodedTry;
+          layer++;
+          continue;
+        }
+
+        // No further decoding possible
+        break;
+      }
+      return current;
+    }
+
+    // Main decode function fired by button
+    function decodePayload() {
+      const input = payloadInput.value.trim();
+      if (!input) {
+        decodedOutput.textContent = '👉 Please enter a payload to decode.';
+        return;
+      }
+
+      try {
+        const decoded = multiLayerDecode(input, 5);
+        const { decoded: highlighted, flagged } = detectSuspiciousPatterns(decoded);
+
+        decodedOutput.innerHTML = highlighted;
+        if (flagged) {
+          decodedOutput.setAttribute('aria-label', 'Decoded payload with suspicious patterns highlighted');
+          decodedOutput.style.borderColor = '#ff2233';
+          decodedOutput.style.boxShadow = '0 0 30px #ff2233cc, inset 0 0 40px #ff2233bb';
+        } else {
+          decodedOutput.setAttribute('aria-label', 'Decoded payload without suspicious patterns');
+          decodedOutput.style.borderColor = '#00ffaa88';
+          decodedOutput.style.boxShadow = 'inset 0 0 20px #06f7bdcc, 0 0 30px #33ffaaaa';
+        }
+      } catch (error) {
+        decodedOutput.textContent = '⚠ Decoding error: ' + error.message;
+        decodedOutput.style.borderColor = '#ff2233';
+        decodedOutput.style.boxShadow = '0 0 30px #ff2233cc, inset 0 0 40px #ff2233bb';
+      }
+    }
+
+    decodeBtn.addEventListener('click', decodePayload);
+  </script>
+</body>
+</html>
